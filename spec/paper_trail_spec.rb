@@ -1,79 +1,107 @@
-require "rails_helper"
+# frozen_string_literal: true
 
-describe PaperTrail do
-  context "when enabled" do
-    it "affects all threads" do
-      Thread.new { PaperTrail.enabled = false }.join
-      assert_equal false, PaperTrail.enabled?
+require "spec_helper"
+
+RSpec.describe PaperTrail do
+  describe ".request" do
+    it "returns the value returned by the block" do
+      expect(described_class.request(whodunnit: "abe lincoln") { "A test" }).to eq("A test")
+    end
+  end
+
+  describe "#config", versioning: true do
+    it "allows for config values to be set" do
+      expect(described_class.config.enabled).to eq(true)
+      described_class.config.enabled = false
+      expect(described_class.config.enabled).to eq(false)
     end
 
+    it "accepts blocks and yield the config instance" do
+      expect(described_class.config.enabled).to eq(true)
+      described_class.config { |c| c.enabled = false }
+      expect(described_class.config.enabled).to eq(false)
+    end
+  end
+
+  describe "#configure" do
+    it "is an alias for the `config` method" do
+      expect(described_class.method(:configure)).to eq(
+        described_class.method(:config)
+      )
+    end
+  end
+
+  describe ".gem_version" do
+    it "returns a Gem::Version" do
+      v = described_class.gem_version
+      expect(v).to be_a(::Gem::Version)
+      expect(v.to_s).to eq(::PaperTrail::VERSION::STRING)
+    end
+  end
+
+  context "when enabled" do
     after do
-      PaperTrail.enabled = true
+      described_class.enabled = true
+    end
+
+    it "affects all threads" do
+      Thread.new { described_class.enabled = false }.join
+      assert_equal false, described_class.enabled?
     end
   end
 
   context "default" do
-    it "should have versioning off by default" do
-      expect(PaperTrail).not_to be_enabled
+    it "has versioning off by default" do
+      expect(described_class).not_to be_enabled
     end
 
-    it "should turn versioning on in a `with_versioning` block" do
-      expect(PaperTrail).not_to be_enabled
+    it "has versioning on in a `with_versioning` block" do
+      expect(described_class).not_to be_enabled
       with_versioning do
-        expect(PaperTrail).to be_enabled
+        expect(described_class).to be_enabled
       end
-      expect(PaperTrail).not_to be_enabled
+      expect(described_class).not_to be_enabled
     end
 
     context "error within `with_versioning` block" do
-      it "should revert the value of `PaperTrail.enabled?` to it's previous state" do
-        expect(PaperTrail).not_to be_enabled
+      it "reverts the value of `PaperTrail.enabled?` to its previous state" do
+        expect(described_class).not_to be_enabled
         expect { with_versioning { raise } }.to raise_error(RuntimeError)
-        expect(PaperTrail).not_to be_enabled
+        expect(described_class).not_to be_enabled
       end
     end
   end
 
   context "`versioning: true`", versioning: true do
-    it "should have versioning on by default" do
-      expect(PaperTrail).to be_enabled
+    it "has versioning on by default" do
+      expect(described_class).to be_enabled
     end
 
-    it "should keep versioning on after a with_versioning block" do
-      expect(PaperTrail).to be_enabled
+    it "keeps versioning on after a with_versioning block" do
+      expect(described_class).to be_enabled
       with_versioning do
-        expect(PaperTrail).to be_enabled
+        expect(described_class).to be_enabled
       end
-      expect(PaperTrail).to be_enabled
+      expect(described_class).to be_enabled
     end
   end
 
   context "`with_versioning` block at class level" do
-    it { expect(PaperTrail).not_to be_enabled }
+    it { expect(described_class).not_to be_enabled }
 
     with_versioning do
-      it "should have versioning on by default" do
-        expect(PaperTrail).to be_enabled
+      it "has versioning on by default" do
+        expect(described_class).to be_enabled
       end
     end
-    it "should not leak the `enabled?` state into successive tests" do
-      expect(PaperTrail).not_to be_enabled
+    it "does not leak the `enabled?` state into successive tests" do
+      expect(described_class).not_to be_enabled
     end
   end
 
-  describe :whodunnit do
-    before(:all) { PaperTrail.whodunnit = "foobar" }
-
-    it "should get set to `nil` by default" do
-      expect(PaperTrail.whodunnit).to be_nil
-    end
-  end
-
-  describe :controller_info do
-    before(:all) { ::PaperTrail.controller_info = { foo: "bar" } }
-
-    it "should get set to an empty hash before each test" do
-      expect(PaperTrail.controller_info).to eq({})
+  describe ".version" do
+    it "returns the expected String" do
+      expect(described_class.version).to eq(described_class::VERSION::STRING)
     end
   end
 end

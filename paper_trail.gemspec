@@ -1,9 +1,12 @@
-$LOAD_PATH.unshift File.expand_path("../lib", __FILE__)
+# frozen_string_literal: true
+
+$LOAD_PATH.unshift File.expand_path("lib", __dir__)
+require "paper_trail/compatibility"
 require "paper_trail/version_number"
 
 Gem::Specification.new do |s|
   s.name = "paper_trail"
-  s.version = PaperTrail::VERSION::STRING.dup # The `dup` is for ruby 1.9.3
+  s.version = PaperTrail::VERSION::STRING
   s.platform = Gem::Platform::RUBY
   s.summary = "Track changes to your models."
   s.description = <<-EOS
@@ -11,67 +14,50 @@ Track changes to your models, for auditing or versioning. See how a model looked
 at any stage in its lifecycle, revert it to any version, or restore it after it
 has been destroyed.
   EOS
-  s.homepage = "https://github.com/airblade/paper_trail"
-  s.authors = ["Andy Stewart", "Ben Atkins"]
-  s.email = "batkinz@gmail.com"
+  s.homepage = "https://github.com/paper-trail-gem/paper_trail"
+  s.authors = ["Andy Stewart", "Ben Atkins", "Jared Beck"]
+  s.email = "jared@jaredbeck.com"
   s.license = "MIT"
 
-  s.files = `git ls-files`.split("\n")
-  s.test_files = `git ls-files -- {test,spec,features}/*`.split("\n")
-  s.executables = `git ls-files -- bin/*`.split("\n").map { |f| File.basename(f) }
+  s.files = `git ls-files -z`.split("\x0").select { |f|
+    f.match(%r{^(Gemfile|LICENSE|lib/|paper_trail.gemspec)})
+  }
+  s.executables = []
   s.require_paths = ["lib"]
 
   s.required_rubygems_version = ">= 1.3.6"
-  s.required_ruby_version = ">= 1.9.3"
 
-  # Rails does not follow semver, makes breaking changes in minor versions.
-  s.add_dependency "activerecord", [">= 4.0", "< 5.2"]
+  # Ruby 2.4 reaches EoL at the end of March of 2020
+  # https://www.ruby-lang.org/en/news/2019/10/02/ruby-2-4-9-released/
+  s.required_ruby_version = ">= 2.4.0"
+
+  # We no longer specify a maximum rails version.
+  # See discussion in paper_trail/compatibility.rb
+  s.add_dependency "activerecord", ::PaperTrail::Compatibility::ACTIVERECORD_GTE
   s.add_dependency "request_store", "~> 1.1"
 
-  s.add_development_dependency "appraisal", "~> 2.1"
-  s.add_development_dependency "rake", "~> 10.4.2"
-  s.add_development_dependency "shoulda", "~> 3.5.0"
-  s.add_development_dependency "ffaker", "~> 2.1.0"
+  s.add_development_dependency "appraisal", "~> 2.2"
+  s.add_development_dependency "byebug", "~> 11.0"
+  s.add_development_dependency "ffaker", "~> 2.11"
+  s.add_development_dependency "generator_spec", "~> 0.9.4"
+  s.add_development_dependency "memory_profiler", "~> 0.9.14"
+  s.add_development_dependency "rake", "~> 13.0"
+  s.add_development_dependency "rspec-rails", "~> 4.0"
+  s.add_development_dependency "rubocop", "~> 0.89.1"
+  s.add_development_dependency "rubocop-performance", "~> 1.7.1"
+  s.add_development_dependency "rubocop-rspec", "~> 1.42.0"
 
-  # Why `railties`? Possibly used by `test/dummy` boot up?
-  s.add_development_dependency "railties", [">= 4.0", "< 5.2"]
-
-  s.add_development_dependency "rack-test", "~> 0.6.3"
-  s.add_development_dependency "rspec-rails", "~> 3.5"
-  s.add_development_dependency "generator_spec", "~> 0.9.3"
-  s.add_development_dependency "database_cleaner", "~> 1.2"
-  s.add_development_dependency "pry-nav", "~> 0.2.4"
-
-  # We cannot upgrade rubocop until we drop support for ruby 1.9.3.
-  # Rubocop 0.42 requires ruby >= 2.0. We could add a conditional, as we do
-  # below for rack and pg, but that means our config files (e.g. `.rubocop.yml`
-  # would have to simultaneously be valid in two different versions of rubocop.
-  # That is currently possible, but probably won't be in the future, and is
-  # not worth the effort.) Because of pain points like this, I think we'll
-  # have to drop support for ruby 1.9.3 soon.
-  s.add_development_dependency "rubocop", "~> 0.41.1"
-
-  s.add_development_dependency "timecop", "~> 0.8.0"
-
-  if ::Gem.ruby_version < ::Gem::Version.new("2.0.0")
-    s.add_development_dependency "rack", "< 2"
-  end
-
-  if defined?(JRUBY_VERSION)
-    s.add_development_dependency "activerecord-jdbcsqlite3-adapter", "~> 1.3.15"
-    s.add_development_dependency "activerecord-jdbcpostgresql-adapter", "~> 1.3.15"
-    s.add_development_dependency "activerecord-jdbcmysql-adapter", "~> 1.3.15"
-  else
-    s.add_development_dependency "sqlite3", "~> 1.2"
-
-    # pg 0.19 requires ruby >= 2.0.0
-    if ::Gem.ruby_version >= ::Gem::Version.new("2.0.0")
-      s.add_development_dependency "pg", "~> 0.19.0"
-    else
-      s.add_development_dependency "pg", [">= 0.17", "< 0.19"]
-    end
-
-    # activerecord >= 4.2.5 may use mysql2 >= 0.4
-    s.add_development_dependency "mysql2", "~> 0.4.2"
-  end
+  # ## Database Adapters
+  #
+  # The dependencies here must match the `gem` call at the top of their
+  # adapters, eg. `active_record/connection_adapters/mysql2_adapter.rb`,
+  # assuming said call is consistent for all versions of rails we test against
+  # (see `Appraisals`).
+  #
+  # Currently, all versions of rails we test against are consistent. In the past,
+  # when we tested against rails 4.2, we had to specify database adapters in
+  # `Appraisals`.
+  s.add_development_dependency "mysql2", "~> 0.5"
+  s.add_development_dependency "pg", ">= 0.18", "< 2.0"
+  s.add_development_dependency "sqlite3", "~> 1.4"
 end

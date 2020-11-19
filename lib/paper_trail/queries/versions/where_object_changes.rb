@@ -1,7 +1,9 @@
+# frozen_string_literal: true
+
 module PaperTrail
   module Queries
     module Versions
-      # For public API documentation, see `where_object` in
+      # For public API documentation, see `where_object_changes` in
       # `paper_trail/version_concern.rb`.
       # @api private
       class WhereObjectChanges
@@ -21,6 +23,11 @@ module PaperTrail
 
         # @api private
         def execute
+          if PaperTrail.config.object_changes_adapter&.respond_to?(:where_object_changes)
+            return PaperTrail.config.object_changes_adapter.where_object_changes(
+              @version_model_class, @attributes
+            )
+          end
           case @version_model_class.columns_hash["object_changes"].type
           when :jsonb
             jsonb

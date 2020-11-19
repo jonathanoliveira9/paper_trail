@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # Specify here only version constraints that differ from
 # `paper_trail.gemspec`.
 #
@@ -7,23 +9,12 @@
 # > the version from the appraisal takes precedence.
 # > https://github.com/thoughtbot/appraisal
 
-appraise "ar-4.2" do
-  gem "activerecord", "~> 4.2"
-  gem "sinatra", "~> 1.4.6"
+appraise "ar-5.2" do
+  gem "activerecord", "~> 5.2.4"
+  gem "rails-controller-testing", "~> 1.0.2"
 end
 
-appraise "ar-5.0" do
-  gem "activerecord", "~> 5.0.0"
-  gem "rspec-rails", "~> 3.5.1"
-  gem 'rails-controller-testing'
-
-  # The AR5 version of PaperTrail is not compatible with sinatra 2 yet.
-  # Contributions welcome.
-  # gem "sinatra", "2.0.0.beta2"
-end
-
-appraise "ar_master" do
-  gem "rails", github: "rails/rails"
-  gem "rspec-rails", "~> 3.5.1"
-  gem "rails-controller-testing"
+appraise "ar-6.0" do
+  gem "activerecord", "~> 6.0.3"
+  gem "rails-controller-testing", "~> 1.0.3"
 end

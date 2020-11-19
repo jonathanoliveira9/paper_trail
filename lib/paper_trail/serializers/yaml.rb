@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "yaml"
 
 module PaperTrail
@@ -10,7 +12,12 @@ module PaperTrail
         ::YAML.load string
       end
 
+      # @param object (Hash | HashWithIndifferentAccess) - Coming from
+      # `recordable_object` `object` will be a plain `Hash`. However, due to
+      # recent [memory optimizations](https://git.io/fjeYv), when coming from
+      # `recordable_object_changes`, it will be a `HashWithIndifferentAccess`.
       def dump(object)
+        object = object.to_hash if object.is_a?(HashWithIndifferentAccess)
         ::YAML.dump object
       end
 
@@ -22,34 +29,14 @@ module PaperTrail
 
       # Returns a SQL LIKE condition to be used to match the given field and
       # value in the serialized `object_changes`.
-      def where_object_changes_condition(arel_field, field, value)
-        # Need to check first (before) and secondary (after) fields
-        m1 = nil
-        m2 = nil
-        case yaml_engine_id
-        when :psych
-          m1 = "%\n#{field}:\n- #{value}\n%"
-          m2 = "%\n#{field}:\n-%\n- #{value}\n%"
-        when :syck
-          # Syck adds extra spaces into array dumps
-          m1 = "%\n#{field}: \n%- #{value}\n%"
-          m2 = "%\n#{field}: \n-%\n- #{value}\n%"
-        else
-          raise "Unknown yaml engine"
-        end
-        arel_field.matches(m1).or(arel_field.matches(m2))
-      end
-
-      # Returns a symbol identifying the YAML engine. Syck was removed from
-      # the ruby stdlib in ruby 2.0, but is still available as a gem.
-      # @api private
-      def yaml_engine_id
-        if (defined?(::YAML::ENGINE) && ::YAML::ENGINE.yamler == "psych") ||
-            (defined?(::Psych) && ::YAML == ::Psych)
-          :psych
-        else
-          :syck
-        end
+      def where_object_changes_condition(*)
+        raise <<-STR.squish.freeze
+          where_object_changes no longer supports reading YAML from a text
+          column. The old implementation was inaccurate, returning more records
+          than you wanted. This feature was deprecated in 8.1.0 and removed in
+          9.0.0. The json and jsonb datatypes are still supported. See
+          discussion at https://github.com/paper-trail-gem/paper_trail/pull/997
+        STR
       end
     end
   end

@@ -1,6 +1,15 @@
-# This file copies the test database into locations for the `Foo` and `Bar` namespace,
-# then defines those namespaces, then establishes the sqlite3 connection for the namespaces
-# to simulate an application with multiple database connections.
+# frozen_string_literal: true
+
+require_relative "paper_trail_spec_migrator"
+
+# This file copies the test database into locations for the `Foo` and `Bar`
+# namespace, then defines those namespaces, then establishes the sqlite3
+# connection for the namespaces to simulate an application with multiple
+# database connections.
+
+# This is all going to change in rails 6. See "RailsConf 2018: Keynote: The
+# Future of Rails 6: Scalable by Default by Eileen Uchitelle"
+# https://www.youtube.com/watch?v=8evXWvM4oXM
 
 # Load database yaml to use
 configs = YAML.load_file("#{Rails.root}/config/database.yml")
@@ -24,14 +33,14 @@ module Foo
   end
 
   class Document < Base
-    has_paper_trail class_name: "Foo::Version"
+    has_paper_trail versions: { class_name: "Foo::Version" }
   end
 end
 
 Foo::Base.configurations = configs
 Foo::Base.establish_connection(:foo)
 ActiveRecord::Base.establish_connection(:foo)
-ActiveRecord::Migrator.migrate File.expand_path("#{db_directory}/migrate/", __FILE__)
+::PaperTrailSpecMigrator.new.migrate
 
 module Bar
   class Base < ActiveRecord::Base
@@ -43,12 +52,11 @@ module Bar
   end
 
   class Document < Base
-    has_paper_trail class_name: "Bar::Version"
+    has_paper_trail versions: { class_name: "Bar::Version" }
   end
 end
 
 Bar::Base.configurations = configs
 Bar::Base.establish_connection(:bar)
 ActiveRecord::Base.establish_connection(:bar)
-
-ActiveRecord::Migrator.migrate File.expand_path("#{db_directory}/migrate/", __FILE__)
+::PaperTrailSpecMigrator.new.migrate

@@ -1,4 +1,5 @@
-require "active_support/concern"
+# frozen_string_literal: true
+
 require "paper_trail/attribute_serializers/object_changes_attribute"
 require "paper_trail/queries/versions/where_object"
 require "paper_trail/queries/versions/where_object_changes"
@@ -12,23 +13,22 @@ module PaperTrail
     extend ::ActiveSupport::Concern
 
     included do
-      belongs_to :item, polymorphic: true
-
-      # Since the test suite has test coverage for this, we want to declare
-      # the association when the test suite is running. This makes it pass when
-      # DB is not initialized prior to test runs such as when we run on Travis
-      # CI (there won't be a db in `test/dummy/db/`).
-      if PaperTrail.config.track_associations?
-        has_many :version_associations, dependent: :destroy
+      if ::ActiveRecord.gem_version >= Gem::Version.new("5.0")
+        belongs_to :item, polymorphic: true, optional: true
+      else
+        belongs_to :item, polymorphic: true
       end
 
       validates_presence_of :event
       after_create :enforce_version_limit!
-      scope :within_transaction, ->(id) { where transaction_id: id }
     end
 
     # :nodoc:
     module ClassMethods
+      def item_subtype_column_present?
+        column_names.include?("item_subtype")
+      end
+
       def with_item_keys(item_type, item_id)
         where item_type: item_type, item_id: item_id
       end
@@ -47,39 +47,6 @@ module PaperTrail
 
       def not_creates
         where "event <> ?", "create"
-      end
-
-      # Returns versions after `obj`.
-      #
-      # @param obj - a `Version` or a timestamp
-      # @param timestamp_arg - boolean - When true, `obj` is a timestamp.
-      #   Default: false.
-      # @return `ActiveRecord::Relation`
-      # @api public
-      def subsequent(obj, timestamp_arg = false)
-        if timestamp_arg != true && primary_key_is_int?
-          return where(arel_table[primary_key].gt(obj.id)).order(arel_table[primary_key].asc)
-        end
-
-        obj = obj.send(:created_at) if obj.is_a?(self)
-        where(arel_table[:created_at].gt(obj)).order(timestamp_sort_order)
-      end
-
-      # Returns versions before `obj`.
-      #
-      # @param obj - a `Version` or a timestamp
-      # @param timestamp_arg - boolean - When true, `obj` is a timestamp.
-      #   Default: false.
-      # @return `ActiveRecord::Relation`
-      # @api public
-      def preceding(obj, timestamp_arg = false)
-        if timestamp_arg != true && primary_key_is_int?
-          return where(arel_table[primary_key].lt(obj.id)).order(arel_table[primary_key].desc)
-        end
-
-        obj = obj.send(:created_at) if obj.is_a?(self)
-        where(arel_table[:created_at].lt(obj)).
-          order(timestamp_sort_order("desc"))
       end
 
       def between(start_time, end_time)
@@ -155,20 +122,79 @@ module PaperTrail
 
       def primary_key_is_int?
         @primary_key_is_int ||= columns_hash[primary_key].type == :integer
-      rescue
+      rescue StandardError # TODO: Rescue something more specific
         true
       end
 
       # Returns whether the `object` column is using the `json` type supported
       # by PostgreSQL.
       def object_col_is_json?
-        [:json, :jsonb].include?(columns_hash["object"].type)
+        %i[json jsonb].include?(columns_hash["object"].type)
       end
 
       # Returns whether the `object_changes` column is using the `json` type
       # supported by PostgreSQL.
       def object_changes_col_is_json?
-        [:json, :jsonb].include?(columns_hash["object_changes"].try(:type))
+        %i[json jsonb].include?(columns_hash["object_changes"].try(:type))
+      end
+
+      # Returns versions before `obj`.
+      #
+      # @param obj - a `Version` or a timestamp
+      # @param timestamp_arg - boolean - When true, `obj` is a timestamp.
+      #   Default: false.
+      # @return `ActiveRecord::Relation`
+      # @api public
+      # rubocop:disable Style/OptionalBooleanParameter
+      def preceding(obj, timestamp_arg = false)
+        if timestamp_arg != true && primary_key_is_int?
+          preceding_by_id(obj)
+        else
+          preceding_by_timestamp(obj)
+        end
+      end
+      # rubocop:enable Style/OptionalBooleanParameter
+
+      # Returns versions after `obj`.
+      #
+      # @param obj - a `Version` or a timestamp
+      # @param timestamp_arg - boolean - When true, `obj` is a timestamp.
+      #   Default: false.
+      # @return `ActiveRecord::Relation`
+      # @api public
+      # rubocop:disable Style/OptionalBooleanParameter
+      def subsequent(obj, timestamp_arg = false)
+        if timestamp_arg != true && primary_key_is_int?
+          subsequent_by_id(obj)
+        else
+          subsequent_by_timestamp(obj)
+        end
+      end
+      # rubocop:enable Style/OptionalBooleanParameter
+
+      private
+
+      # @api private
+      def preceding_by_id(obj)
+        where(arel_table[primary_key].lt(obj.id)).order(arel_table[primary_key].desc)
+      end
+
+      # @api private
+      def preceding_by_timestamp(obj)
+        obj = obj.send(:created_at) if obj.is_a?(self)
+        where(arel_table[:created_at].lt(obj)).
+          order(timestamp_sort_order("desc"))
+      end
+
+      # @api private
+      def subsequent_by_id(version)
+        where(arel_table[primary_key].gt(version.id)).order(arel_table[primary_key].asc)
+      end
+
+      # @api private
+      def subsequent_by_timestamp(obj)
+        obj = obj.send(:created_at) if obj.is_a?(self)
+        where(arel_table[:created_at].gt(obj)).order(timestamp_sort_order)
       end
     end
 
@@ -183,18 +209,8 @@ module PaperTrail
 
     # Restore the item from this version.
     #
-    # Optionally this can also restore all :has_one and :has_many (including
-    # has_many :through) associations as they were "at the time", if they are
-    # also being versioned by PaperTrail.
-    #
     # Options:
     #
-    # - :has_one
-    #   - `true` - Also reify has_one associations.
-    #   - `false - Default.
-    # - :has_many
-    #   - `true` - Also reify has_many and has_many :through associations.
-    #   - `false` - Default.
     # - :mark_for_destruction
     #   - `true` - Mark the has_one/has_many associations that did not exist in
     #     the reified version for destruction, instead of removing them.
@@ -209,6 +225,9 @@ module PaperTrail
     #   - `:preserve` - Attributes undefined in version record are not modified.
     #
     def reify(options = {})
+      unless self.class.column_names.include? "object"
+        raise "reify can't be called without an object column"
+      end
       return nil if object.nil?
       ::PaperTrail::Reifier.reify(self, options)
     end
@@ -226,24 +245,12 @@ module PaperTrail
       @paper_trail_originator ||= previous.try(:whodunnit)
     end
 
-    def originator
-      ::ActiveSupport::Deprecation.warn "Use paper_trail_originator instead of originator."
-      paper_trail_originator
-    end
-
     # Returns who changed the item from the state it had in this version. This
     # is an alias for `whodunnit`.
     def terminator
       @terminator ||= whodunnit
     end
     alias version_author terminator
-
-    def sibling_versions(reload = false)
-      if reload || @sibling_versions.nil?
-        @sibling_versions = self.class.with_item_keys(item_type, item_id)
-      end
-      @sibling_versions
-    end
 
     def next
       @next ||= sibling_versions.subsequent(self).first
@@ -254,8 +261,9 @@ module PaperTrail
     end
 
     # Returns an integer representing the chronological position of the
-    # version among its siblings (see `sibling_versions`). The "create" event,
-    # for example, has an index of 0.
+    # version among its siblings. The "create" event, for example, has an index
+    # of 0.
+    #
     # @api public
     def index
       @index ||= RecordHistory.new(sibling_versions, self.class).index(self)
@@ -265,6 +273,10 @@ module PaperTrail
 
     # @api private
     def load_changeset
+      if PaperTrail.config.object_changes_adapter&.respond_to?(:load_changeset)
+        return PaperTrail.config.object_changes_adapter.load_changeset(self)
+      end
+
       # First, deserialize the `object_changes` column.
       changes = HashWithIndifferentAccess.new(object_changes_deserialized)
 
@@ -300,22 +312,43 @@ module PaperTrail
       else
         begin
           PaperTrail.serializer.load(object_changes)
-        rescue # TODO: Rescue something specific
+        rescue StandardError # TODO: Rescue something more specific
           {}
         end
       end
     end
 
-    # Checks that a value has been set for the `version_limit` config
-    # option, and if so enforces it.
+    # Enforces the `version_limit`, if set. Default: no limit.
     # @api private
     def enforce_version_limit!
-      limit = PaperTrail.config.version_limit
+      limit = version_limit
       return unless limit.is_a? Numeric
-      previous_versions = sibling_versions.not_creates
+      previous_versions = sibling_versions.not_creates.
+        order(self.class.timestamp_sort_order("asc"))
       return unless previous_versions.size > limit
       excess_versions = previous_versions - previous_versions.last(limit)
       excess_versions.map(&:destroy)
+    end
+
+    # @api private
+    def sibling_versions
+      @sibling_versions ||= self.class.with_item_keys(item_type, item_id)
+    end
+
+    # See docs section 2.e. Limiting the Number of Versions Created.
+    # The version limit can be global or per-model.
+    #
+    # @api private
+    #
+    # TODO: Duplication: similar `constantize` in Reifier#version_reification_class
+    def version_limit
+      if self.class.item_subtype_column_present?
+        klass = (item_subtype || item_type).constantize
+        if klass&.paper_trail_options&.key?(:limit)
+          return klass.paper_trail_options[:limit]
+        end
+      end
+      PaperTrail.config.version_limit
     end
   end
 end

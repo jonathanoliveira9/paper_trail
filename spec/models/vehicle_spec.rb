@@ -1,5 +1,7 @@
-require "rails_helper"
+# frozen_string_literal: true
 
-describe Vehicle, type: :model do
-  it { is_expected.to_not be_versioned }
+require "spec_helper"
+
+RSpec.describe Vehicle, type: :model do
+  it { is_expected.not_to be_versioned }
 end

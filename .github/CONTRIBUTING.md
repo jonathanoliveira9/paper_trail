@@ -2,25 +2,45 @@
 
 Thanks for your interest in PaperTrail!
 
-Ask usage questions on Stack Overflow:
-https://stackoverflow.com/tags/paper-trail-gem
+## Reporting Security Vulnerabilities
 
-**Please do not use github issues to ask usage questions.**
+Please email jared@jaredbeck.com and batkinz@gmail.com. Do not mention the
+vulnerability publicly until there's a fix.
 
-On github, we appreciate bug reports, feature
-suggestions, and especially pull requests.
+We will respond as soon as we can. Thank you for responsibly disclosing
+security vulnerabilities.
 
-Thanks, and happy (paper) trails :)
+## Usage Questions
+
+Due to limited volunteers, we cannot answer *usage* questions. Please ask such
+questions on [StackOverflow](https://stackoverflow.com/tags/paper-trail-gem).
 
 ## Reporting Bugs
 
-Please use our [bug report template][1].
+You want to fix a bug, but need some help.
+
+> You are required to provide a script that reproduces the bug, using our
+> template. You are required to fix the bug. We're here to help, but no one else
+> will fix it for you. If you don't fix the bug in a reasonable amount of time,
+> your issue will be closed.
+> - From our [issue template][1].
+
+Due to limited volunteers, we cannot fix everyone's bugs for them. We're happy
+to help, but we can only accept issues from people committed to working on their
+own problems.
+
+Different people use different parts of PaperTrail. You may have found a bug,
+but you might also be the only person affected by that bug. Don't hesitate to
+ask for whatever help you need, but it's your job to fix it.
 
 ## Development
 
-Install gems with `bundle exec appraisal install`. This requires ruby >= 2.0.
-(It is still possible to run the `ar-4.2` gemfile locally on ruby 1.9.3, but
-not the `ar-5.0` gemfile.)
+```bash
+gem install bundler
+bundle
+bundle exec appraisal install
+bundle exec appraisal update # occasionally
+```
 
 Testing is a little awkward because the test suite:
 
@@ -28,110 +48,72 @@ Testing is a little awkward because the test suite:
 1. Contains a "dummy" rails app with three databases (test, foo, and bar)
 1. Supports three different RDBMS': sqlite, mysql, and postgres
 
-### Test sqlite, AR 4.2
+### Test sqlite, AR 6
 
 ```
-# Create the appropriate database config. file
-rm test/dummy/config/database.yml
-DB=sqlite bundle exec rake prepare
-
-# If this is the first test run ever, create databases.
-# We can't use `appraisal` inside the test dummy, so we must set `BUNDLE_GEMFILE`.
-# See test/dummy/config/boot.rb for a complete explanation.
-cd test/dummy
-export BUNDLE_GEMFILE=../../gemfiles/ar_4.2.gemfile
-RAILS_ENV=test bundle exec rake db:setup
-RAILS_ENV=foo bundle exec rake db:setup
-RAILS_ENV=bar bundle exec rake db:setup
-unset BUNDLE_GEMFILE
-cd ../..
-
-# Run tests
-DB=sqlite bundle exec appraisal ar-4.2 rake
+DB=sqlite bundle exec appraisal ar-6.0 rake
 ```
 
 ### Test sqlite, AR 5
 
 ```
-# Create the appropriate database config. file
-rm test/dummy/config/database.yml
-DB=sqlite bundle exec rake prepare
-
-# If this is the first test run ever, create databases.
-# We can't use `appraisal` inside the test dummy, so we must set `BUNDLE_GEMFILE`.
-# See test/dummy/config/boot.rb for a complete explanation.
-cd test/dummy
-export BUNDLE_GEMFILE=../../gemfiles/ar_5.0.gemfile
-RAILS_ENV=test bundle exec rake db:environment:set db:setup
-RAILS_ENV=foo bundle exec rake db:environment:set db:setup
-RAILS_ENV=bar bundle exec rake db:environment:set db:setup
-unset BUNDLE_GEMFILE
-cd ../..
-
-# Run tests
-DB=sqlite bundle exec appraisal ar-5.0 rake
+DB=sqlite bundle exec appraisal ar-5.2 rake
 ```
 
 ### Test mysql, AR 5
 
 ```
-# Create the appropriate database config. file
-rm test/dummy/config/database.yml
-DB=mysql bundle exec rake prepare
-
-# If this is the first test run ever, create databases.
-# We can't use `appraisal` inside the test dummy, so we must set `BUNDLE_GEMFILE`.
-# See test/dummy/config/boot.rb for a complete explanation.
-cd test/dummy
-export BUNDLE_GEMFILE=../../gemfiles/ar_5.0.gemfile
-RAILS_ENV=test bundle exec rake db:environment:set db:setup
-RAILS_ENV=foo bundle exec rake db:environment:set db:setup
-RAILS_ENV=bar bundle exec rake db:environment:set db:setup
-unset BUNDLE_GEMFILE
-cd ../..
-
-# Run tests
-DB=mysql bundle exec appraisal ar-5.0 rake
+DB=mysql bundle exec appraisal ar-5.2 rake
 ```
 
 ### Test postgres, AR 5
 
 ```
-# Create the appropriate database config. file
-rm test/dummy/config/database.yml
-DB=postgres bundle exec rake prepare
+createuser --superuser postgres
+DB=postgres bundle exec appraisal ar-5.2 rake
+```
 
-# If this is the first test run ever, create databases.
-# Unlike mysql, use create/migrate instead of setup.
-# We can't use `appraisal` inside the test dummy, so we must set `BUNDLE_GEMFILE`.
-# See test/dummy/config/boot.rb for a complete explanation.
-cd test/dummy
-export BUNDLE_GEMFILE=../../gemfiles/ar_5.0.gemfile
-DB=postgres RAILS_ENV=test bundle exec rake db:drop db:create db:migrate
-DB=postgres RAILS_ENV=foo bundle exec rake db:drop db:create db:migrate
-DB=postgres RAILS_ENV=bar bundle exec rake db:drop db:create db:migrate
-unset BUNDLE_GEMFILE
-cd ../..
+## Adding new schema
 
-# Run tests
-DB=postgres bundle exec rake
-DB=postgres bundle exec appraisal ar-5.0 rake
+Edit `spec/dummy_app/db/migrate/20110208155312_set_up_test_tables.rb`. Migration
+will be performed by `rake`, so you can just run it as shown above. Also,
+`spec/dummy_app/db/schema.rb` is deliberately `.gitignore`d, we don't use it.
+
+## Documentation
+
+### Generate the Table of Contents
+
+```
+yarn global add markdown-toc
+markdown-toc -i --maxdepth 3 --bullets='-' README.md
 ```
 
 ## Releases
 
-1. Set the version in lib/paper_trail/version_number.rb
-  - Set PRE to nil unless it's a pre-release (beta, rc, etc.)
-1. In the changelog,
-  - Replace "Unreleased" with the date in iso-8601 format
-  - Add a new "Unreleased" section
-1. In the readme, update references to version number, including
-  - documentation links table
-  - compatability table
-1. Commit
-1. git tag -a -m "v5.0.0" "v5.0.0" # or whatever number
-1. git push --tags origin 5-stable # or whatever branch
-1. gem build paper_trail.gemspec
-1. gem push paper_trail-5.0.0.gem
+1. Prepare the appropriate "stable" branch for release, eg. `10-stable`
+  1. git checkout 10-stable
+  1. Checkout a new branch, eg. `release-10.3.0`
+  1. Merge the relevant changes from `master`. This could be a plain merge, or
+    it could be cherry-picking. The later is more common in backports.
+  1. Set the version in `lib/paper_trail/version_number.rb`
+  1. In the changelog,
+    - Replace "Unreleased" with the date in ISO-8601 format
+    - Add a new "Unreleased" section
+  1. In the readme, update references to version number, including
+    - documentation links table
+    - compatability table, if necessary
+  1. git commit -am 'Release 10.3.0'
+  1. git push origin release-10.3.0
+  1. Pull request into `10-stable`, CI pass, merge PR
+1. Release
+  1. git checkout 10-stable && git pull
+  1. gem build paper_trail.gemspec
+  1. gem push paper_trail-10.3.0.gem
+  1. git tag -a -m "v10.3.0" "v10.3.0" # or whatever number
+  1. git push --tags origin
+1. Cleanup
+  1. git checkout master
+  1. cherry-pick the "Release 10.3.0" commit from the `10-stable` branch
+  1. git push origin master
 
-[1]: https://github.com/airblade/paper_trail/blob/master/doc/bug_report_template.rb
+[1]: https://github.com/paper-trail-gem/paper_trail/blob/master/.github/ISSUE_TEMPLATE/bug_report.md
