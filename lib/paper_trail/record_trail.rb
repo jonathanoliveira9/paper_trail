@@ -254,6 +254,13 @@ module PaperTrail
     end
 
     # @api private
+    def attribute_in_previous_version(attr_name)
+      if @in_after_callback && RAILS_GTE_5_1
+        @record.attribute_before_last_save(attr_name.to_s)
+      else
+        @record.send(:attribute_was, attr_name.to_s)
+      end
+    end
     def build_version_on_create(in_after_callback:)
       event = Events::Create.new(@record, in_after_callback)
 
